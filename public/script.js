@@ -5,8 +5,10 @@ const sendBtn = document.getElementById('send-btn');
 const clearBtn = document.getElementById('clear-chat');
 const charCounter = document.getElementById('char-counter');
 const themeToggle = document.getElementById('theme-toggle');
-const modelSelect = document.getElementById('model-select');
-const styleSelect = document.getElementById('style-select');
+const sidebar = document.getElementById('sidebar');
+const sidebarToggle = document.getElementById('sidebar-toggle');
+const modelRadios = document.querySelectorAll('input[name="model"]');
+const styleRadios = document.querySelectorAll('input[name="style"]');
 
 
 
@@ -143,6 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
   Logger.info('Application initialized');
 
   loadTheme();
+  loadSidebarState();
   loadPreferences();
   loadConversation();
 
@@ -169,6 +172,21 @@ function loadTheme() {
   document.documentElement.setAttribute('data-theme', savedTheme);
 }
 
+// Sidebar toggle
+sidebarToggle.addEventListener('click', () => {
+  sidebar.classList.toggle('collapsed');
+  const isCollapsed = sidebar.classList.contains('collapsed');
+  localStorage.setItem('sidebarCollapsed', isCollapsed);
+  Logger.info(`Sidebar ${isCollapsed ? 'collapsed' : 'expanded'}`);
+});
+
+function loadSidebarState() {
+  const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+  if (isCollapsed) {
+    sidebar.classList.add('collapsed');
+  }
+}
+
 // Load user preferences
 function loadPreferences() {
   const savedModel = localStorage.getItem('selectedModel');
@@ -176,12 +194,20 @@ function loadPreferences() {
 
   if (savedModel) {
     selectedModel = savedModel;
-    modelSelect.value = savedModel;
+    // Set the correct radio button
+    const modelRadio = document.querySelector(`input[name="model"][value="${savedModel}"]`);
+    if (modelRadio) {
+      modelRadio.checked = true;
+    }
   }
 
   if (savedStyle) {
     selectedStyle = savedStyle;
-    styleSelect.value = savedStyle;
+    // Set the correct radio button
+    const styleRadio = document.querySelector(`input[name="style"][value="${savedStyle}"]`);
+    if (styleRadio) {
+      styleRadio.checked = true;
+    }
   }
 
   Logger.info(`Preferences loaded - Model: ${selectedModel}, Style: ${selectedStyle}`);
@@ -193,18 +219,40 @@ function savePreferences() {
   localStorage.setItem('selectedStyle', selectedStyle);
 }
 
-// Model selection change
-modelSelect.addEventListener('change', () => {
-  selectedModel = modelSelect.value;
-  savePreferences();
-  Logger.info(`Model changed to: ${selectedModel}`);
+// Model selection change (radio buttons)
+modelRadios.forEach(radio => {
+  radio.addEventListener('change', (e) => {
+    if (e.target.checked) {
+      selectedModel = e.target.value;
+      savePreferences();
+      Logger.info(`Model changed to: ${selectedModel}`);
+
+      // Visual feedback animation
+      const option = e.target.closest('.selection-option');
+      option.style.transform = 'scale(1.02)';
+      setTimeout(() => {
+        option.style.transform = '';
+      }, 200);
+    }
+  });
 });
 
-// Style selection change
-styleSelect.addEventListener('change', () => {
-  selectedStyle = styleSelect.value;
-  savePreferences();
-  Logger.info(`Response style changed to: ${selectedStyle}`);
+// Style selection change (radio buttons)
+styleRadios.forEach(radio => {
+  radio.addEventListener('change', (e) => {
+    if (e.target.checked) {
+      selectedStyle = e.target.value;
+      savePreferences();
+      Logger.info(`Response style changed to: ${selectedStyle}`);
+
+      // Visual feedback animation
+      const option = e.target.closest('.selection-option');
+      option.style.transform = 'scale(1.02)';
+      setTimeout(() => {
+        option.style.transform = '';
+      }, 200);
+    }
+  });
 });
 
 // Character counter
