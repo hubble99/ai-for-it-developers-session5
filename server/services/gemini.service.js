@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import logger from '../logger.js';
 import { CONFIG } from '../config/constants.js';
 
@@ -7,49 +7,66 @@ export class GeminiService {
         if (!apiKey) {
             throw new Error('Gemini API key is required');
         }
-        this.ai = new GoogleGenAI({ apiKey });
-    }
-
-    /**
-     * Generate content (non-streaming)
-     */
-    async generateContent(model, conversation, style) {
-        const contents = this._formatConversation(conversation);
-        const systemInstruction = this._getSystemInstruction(style);
-
-        const response = await this._executeWithRetry(async () => {
-            return await this.ai.models.generateContent({
-                model: model,
-                contents,
-                configs: {
-                    temperature: 0.7,
-                    systemInstruction: systemInstruction,
-                }
-            });
-        });
-
-        return response.text;
+        this.genAI = new GoogleGenerativeAI(apiKey);
     }
 
     /**
      * Generate content stream
      */
-    async generateContentStream(model, conversation, style) {
-        const contents = this._formatConversation(conversation);
+    async generateContentStream(modelName, conversation, style) {
         const systemInstruction = this._getSystemInstruction(style);
 
-        logger.debug(`Starting stream for model: ${model}`);
+        logger.debug(`Starting stream for model: ${modelName} with style: ${style}`);
+
+        // Get model with system instruction
+        const model = this.genAI.getGenerativeModel({
+            model: modelName,
+            systemInstruction: systemInstruction
+        });
+
+        // Format history (all but the last message)
+        const history = this._formatHistory(conversation.slice(0, -1));
+        const lastMessage = conversation[conversation.length - 1].text;
+
+        const chat = model.startChat({
+            history: history,
+            generationConfig: {
+                temperature: 0.7,
+            },
+        });
 
         return await this._executeWithRetry(async () => {
-            return await this.ai.models.generateContentStream({
-                model: model,
-                contents,
-                configs: {
-                    temperature: 0.7,
-                    systemInstruction: systemInstruction,
-                }
-            });
+            const result = await chat.sendMessageStream(lastMessage);
+            return result.stream;
         });
+    }
+
+    /**
+     * Generate content (non-streaming)
+     */
+    async generateContent(modelName, conversation, style) {
+        const systemInstruction = this._getSystemInstruction(style);
+
+        const model = this.genAI.getGenerativeModel({
+            model: modelName,
+            systemInstruction: systemInstruction
+        });
+
+        const history = this._formatHistory(conversation.slice(0, -1));
+        const lastMessage = conversation[conversation.length - 1].text;
+
+        const chat = model.startChat({
+            history: history,
+            generationConfig: {
+                temperature: 0.7,
+            },
+        });
+
+        const result = await this._executeWithRetry(async () => {
+            return await chat.sendMessage(lastMessage);
+        });
+
+        return result.response.text();
     }
 
     /**
@@ -71,7 +88,7 @@ export class GeminiService {
                     status: error.status
                 });
 
-                // Check if retryable
+                // Check if retryable (429 or 503/UNAVAILABLE)
                 const isOverloaded = error.message && (
                     error.message.includes("overloaded") ||
                     error.message.includes("503") ||
@@ -79,7 +96,7 @@ export class GeminiService {
                 );
 
                 const isRateLimited = error.status === 429 ||
-                    (error.message && error.message.includes("429"));
+                    (error.message && (error.message.includes("429") || error.message.includes("quota")));
 
                 if ((isOverloaded || isRateLimited) && attempt < maxRetries) {
                     let delay = attempt * CONFIG.RETRY.BASE_DELAY_MS;
@@ -99,18 +116,17 @@ export class GeminiService {
                     continue;
                 }
 
-                // If not retryable or max retries reached, throw error
                 throw error;
             }
         }
     }
 
     /**
-     * Format conversation for Gemini API
+     * Format conversation into history format for startChat
      */
-    _formatConversation(conversation) {
-        return conversation.map(({ role, text }) => ({
-            role: role === 'bot' ? 'model' : role,
+    _formatHistory(history) {
+        return history.map(({ role, text }) => ({
+            role: role === 'bot' ? 'model' : 'user',
             parts: [{ text }]
         }));
     }
@@ -124,10 +140,4 @@ export class GeminiService {
     }
 }
 
-
-
-// Export singleton instance (lazy loading recommended in index.js instead)
-// But for compatibility with existing code that imports it, we can keep it if we ensure index.js loads env first.
-// The issue is hosting.
-// Let's remove the auto-instantiation here and do it in index.js
 export default GeminiService;

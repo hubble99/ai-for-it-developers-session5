@@ -10,8 +10,8 @@ const styleSelect = document.getElementById('style-select');
 
 
 
-// API URL from environment or default to localhost
-const API_URL = 'http://localhost:3000';
+// API URL - Use relative path for maximum compatibility
+const API_URL = ''; // Matches the current domain/port automatically
 
 // Conversation history limits
 const MAX_HISTORY_MESSAGES = 20; // Keep last 20 messages for API context

@@ -49,9 +49,9 @@ app.post('/api/chat', async (req, res) => {
             return res.status(400).json({ error: "Bad Request", message: "Conversation must be an array" });
         }
 
-        const text = await geminiService.generateContent(selectedModel, conversation, responseStyle);
+        const response = await geminiService.generateContent(selectedModel, conversation, responseStyle);
 
-        return res.status(200).json({ response: text });
+        return res.status(200).json({ response });
     } catch (error) {
         logger.error('Chat API Error', { message: error.message });
 
@@ -88,7 +88,7 @@ app.post('/api/chat/stream', async (req, res) => {
 
         let fullText = '';
         for await (const chunk of stream) {
-            const chunkText = chunk.text;
+            const chunkText = chunk.text();
             fullText += chunkText;
             res.write(`data: ${JSON.stringify({ token: chunkText })}\n\n`);
         }
