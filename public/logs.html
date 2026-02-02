@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log Viewer - Gemini AI Chatbot</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0f172a;
+            color: #f1f5f9;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+            color: #6366f1;
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: #6366f1;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: #4f46e5;
+            transform: translateY(-2px);
+        }
+
+        button.secondary {
+            background: #475569;
+        }
+
+        button.secondary:hover {
+            background: #334155;
+        }
+
+        button.danger {
+            background: #ef4444;
+        }
+
+        button.danger:hover {
+            background: #dc2626;
+        }
+
+        select {
+            padding: 10px;
+            background: #1e293b;
+            color: #f1f5f9;
+            border: 2px solid #475569;
+            border-radius: 8px;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: #1e293b;
+            padding: 16px;
+            border-radius: 12px;
+            border: 2px solid #475569;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .log-container {
+            background: #1e293b;
+            border: 2px solid #475569;
+            border-radius: 12px;
+            padding: 20px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            border-left: 4px solid;
+            font-size: 13px;
+            font-family: 'Consolas', monospace;
+        }
+
+        .log-entry.ERROR {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: #ef4444;
+        }
+
+        .log-entry.WARN {
+            background: rgba(245, 158, 11, 0.1);
+            border-color: #f59e0b;
+        }
+
+        .log-entry.INFO {
+            background: rgba(16, 185, 129, 0.1);
+            border-color: #10b981;
+        }
+
+        .log-entry.DEBUG {
+            background: rgba(107, 114, 128, 0.1);
+            border-color: #6b7280;
+        }
+
+        .log-timestamp {
+            color: #94a3b8;
+            margin-right: 12px;
+        }
+
+        .log-level {
+            font-weight: 700;
+            margin-right: 12px;
+        }
+
+        .log-level.ERROR {
+            color: #ef4444;
+        }
+
+        .log-level.WARN {
+            color: #f59e0b;
+        }
+
+        .log-level.INFO {
+            color: #10b981;
+        }
+
+        .log-level.DEBUG {
+            color: #6b7280;
+        }
+
+        .log-message {
+            color: #f1f5f9;
+        }
+
+        .log-data {
+            margin-top: 8px;
+            padding: 8px;
+            background: #0f172a;
+            border-radius: 4px;
+            color: #94a3b8;
+            font-size: 12px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #94a3b8;
+        }
+
+        .empty-state svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>📊 Application Logs</h1>
+
+        <div class="controls">
+            <button onclick="refreshLogs()">🔄 Refresh</button>
+            <button onclick="exportLogs()" class="secondary">💾 Export JSON</button>
+            <button onclick="clearLogs()" class="danger">🗑️ Clear Logs</button>
+            <select id="levelFilter" onchange="filterLogs()">
+                <option value="ALL">All Levels</option>
+                <option value="ERROR">Errors Only</option>
+                <option value="WARN">Warnings Only</option>
+                <option value="INFO">Info Only</option>
+                <option value="DEBUG">Debug Only</option>
+            </select>
+            <button onclick="window.location.href='index.html'" class="secondary">← Back to Chat</button>
+        </div>
+
+        <div class="stats" id="stats"></div>
+
+        <div class="log-container" id="logContainer"></div>
+    </div>
+
+    <script>
+        let allLogs = [];
+
+        function loadLogs() {
+            try {
+                allLogs = JSON.parse(localStorage.getItem('appLogs') || '[]');
+                displayLogs(allLogs);
+                updateStats();
+            } catch (e) {
+                console.error('Failed to load logs:', e);
+                allLogs = [];
+            }
+        }
+
+        function displayLogs(logs) {
+            const container = document.getElementById('logContainer');
+
+            if (logs.length === 0) {
+                container.innerHTML = `
+          <div class="empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <h3>No logs yet</h3>
+            <p>Logs will appear here as you use the application</p>
+          </div>
+        `;
+                return;
+            }
+
+            container.innerHTML = logs.reverse().map(log => {
+                const timestamp = new Date(log.timestamp).toLocaleString();
+                const dataHtml = log.data ? `<div class="log-data">${JSON.stringify(log.data, null, 2)}</div>` : '';
+
+                return `
+          <div class="log-entry ${log.level}">
+            <span class="log-timestamp">${timestamp}</span>
+            <span class="log-level ${log.level}">[${log.level}]</span>
+            <span class="log-message">${log.message}</span>
+            ${dataHtml}
+          </div>
+        `;
+            }).join('');
+        }
+
+        function updateStats() {
+            const stats = {
+                total: allLogs.length,
+                errors: allLogs.filter(l => l.level === 'ERROR').length,
+                warnings: allLogs.filter(l => l.level === 'WARN').length,
+                info: allLogs.filter(l => l.level === 'INFO').length
+            };
+
+            document.getElementById('stats').innerHTML = `
+        <div class="stat-card">
+          <div class="stat-label">Total Logs</div>
+          <div class="stat-value">${stats.total}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Errors</div>
+          <div class="stat-value" style="color: #ef4444">${stats.errors}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Warnings</div>
+          <div class="stat-value" style="color: #f59e0b">${stats.warnings}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Info</div>
+          <div class="stat-value" style="color: #10b981">${stats.info}</div>
+        </div>
+      `;
+        }
+
+        function filterLogs() {
+            const level = document.getElementById('levelFilter').value;
+
+            if (level === 'ALL') {
+                displayLogs(allLogs);
+            } else {
+                const filtered = allLogs.filter(log => log.level === level);
+                displayLogs(filtered);
+            }
+        }
+
+        function refreshLogs() {
+            loadLogs();
+        }
+
+        function exportLogs() {
+            const blob = new Blob([JSON.stringify(allLogs, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `chatbot-logs-${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function clearLogs() {
+            if (confirm('Are you sure you want to clear all logs? This cannot be undone.')) {
+                localStorage.removeItem('appLogs');
+                allLogs = [];
+                displayLogs([]);
+                updateStats();
+            }
+        }
+
+        // Load logs on page load
+        loadLogs();
+
+        // Auto-refresh every 5 seconds
+        setInterval(loadLogs, 5000);
+    </script>
+</body>
+
+</html>
